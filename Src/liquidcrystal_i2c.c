@@ -14,6 +14,28 @@ static void ExpanderWrite(uint8_t);
 static void PulseEnable(uint8_t);
 static void DelayUS(uint32_t us);
 
+uint8_t special1[8] = {
+        0b00000,
+        0b11001,
+        0b11011,
+        0b00110,
+        0b01100,
+        0b11011,
+        0b10011,
+        0b00000
+};
+
+uint8_t special2[8] = {
+        0b11000,
+        0b11000,
+        0b00110,
+        0b01001,
+        0b01000,
+        0b01001,
+        0b00110,
+        0b00000
+};
+
 void HD44780_Init(uint8_t rows)
 {
   dpRows = rows;
@@ -59,6 +81,9 @@ void HD44780_Init(uint8_t rows)
   /* Display Mode */
   dpMode = LCD_ENTRYLEFT | LCD_ENTRYSHIFTDECREMENT;
   Send(LCD_ENTRYMODESET | dpMode, 0);
+
+  HD44780_CreateSpecialChar(0, special1);
+  HD44780_CreateSpecialChar(1, special2);
 
   HD44780_Home();
 }
@@ -155,7 +180,7 @@ void HD44780_NoAutoScroll(void)
   Send(LCD_ENTRYMODESET | dpMode, 0);
 }
 
-void HD44780_CreateChar(uint8_t location, uint8_t charmap[])
+void HD44780_CreateSpecialChar(uint8_t location, uint8_t charmap[])
 {
   location &= 0x7;
   Send(LCD_SETCGRAMADDR | (location << 3), 0);
@@ -163,6 +188,21 @@ void HD44780_CreateChar(uint8_t location, uint8_t charmap[])
   {
     Send(charmap[i], RS);
   }
+}
+
+void HD44780_PrintSpecialChar(uint8_t index)
+{
+  Send(index, RS);
+}
+
+void HD44780_LoadCustomCharacter(uint8_t char_num, uint8_t *rows)
+{
+  HD44780_CreateSpecialChar(char_num, rows);
+}
+
+void HD44780_PrintStr(const char c[])
+{
+  while(*c) Send(*c++, RS);
 }
 
 void HD44780_SetBacklight(uint8_t new_val)
@@ -181,16 +221,6 @@ void HD44780_Backlight(void)
 {
   dpBacklight=LCD_BACKLIGHT;
   ExpanderWrite(0);
-}
-
-void HD44780_LoadCustomCharacter(uint8_t char_num, uint8_t *rows)
-{
-  HD44780_CreateChar(char_num, rows);
-}
-
-void HD44780_PrintStr(const char c[])
-{
-  while(*c) Send(*c++, RS);
 }
 
 static void Send(uint8_t value, uint8_t mode)

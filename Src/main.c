@@ -106,6 +106,7 @@ int main(void)
   HD44780_NoDisplay();
   HD44780_Cursor();
   HD44780_PrintStr("HELLO STM32!!!");
+  HD44780_PrintSpecialChar(0);
 
   /* Show characters */
   HD44780_Display();
@@ -113,6 +114,7 @@ int main(void)
   /* Move position */
   HD44780_SetCursor(0, 2);
   HD44780_PrintStr("BYE STM32!!!");
+  HD44780_PrintSpecialChar(1);
 
   /* Blink cursor */
   HD44780_Blink();
