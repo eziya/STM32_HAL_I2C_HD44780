@@ -102,6 +102,9 @@ int main(void)
   /* Initialize */
   HD44780_Init(2);
 
+  /* Clear buffer */
+  HD44780_Clear();
+
   /* Hide characters */
   HD44780_NoDisplay();
   HD44780_Cursor();
