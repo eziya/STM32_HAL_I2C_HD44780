@@ -1,5 +1,14 @@
 #include "liquidcrystal_i2c.h"
 
+#define DelayUS(us) do {\
+    asm volatile (  "MOV R0,%[loops]\n\t"\
+        "1: \n\t"\
+        "SUB R0, #1\n\t"\
+        "CMP R0, #0\n\t"\
+        "BNE 1b \n\t" : : [loops] "r" (32*us) : "memory"\
+    );\
+} while(0)
+
 extern I2C_HandleTypeDef hi2c1;
 
 uint8_t dpFunction;
@@ -8,11 +17,12 @@ uint8_t dpMode;
 uint8_t dpRows;
 uint8_t dpBacklight;
 
+static void SendCommand(uint8_t);
+static void SendChar(uint8_t);
 static void Send(uint8_t, uint8_t);
 static void Write4Bits(uint8_t);
 static void ExpanderWrite(uint8_t);
 static void PulseEnable(uint8_t);
-static void DelayUS(uint32_t us);
 
 uint8_t special1[8] = {
         0b00000,
@@ -53,6 +63,8 @@ void HD44780_Init(uint8_t rows)
     dpFunction |= LCD_5x10DOTS;
   }
 
+
+
   /* Wait for initialization */
   HAL_Delay(50);
 
@@ -67,12 +79,13 @@ void HD44780_Init(uint8_t rows)
   DelayUS(4500);
 
   Write4Bits(0x03 << 4);
-  DelayUS(150);
+  DelayUS(4500);
 
   Write4Bits(0x02 << 4);
+  DelayUS(100);
 
   /* Display Control */
-  Send(LCD_FUNCTIONSET | dpFunction, 0);
+  SendCommand(LCD_FUNCTIONSET | dpFunction);
 
   dpControl = LCD_DISPLAYON | LCD_CURSOROFF | LCD_BLINKOFF;
   HD44780_Display();
@@ -80,7 +93,8 @@ void HD44780_Init(uint8_t rows)
 
   /* Display Mode */
   dpMode = LCD_ENTRYLEFT | LCD_ENTRYSHIFTDECREMENT;
-  Send(LCD_ENTRYMODESET | dpMode, 0);
+  SendCommand(LCD_ENTRYMODESET | dpMode);
+  DelayUS(4500);
 
   HD44780_CreateSpecialChar(0, special1);
   HD44780_CreateSpecialChar(1, special2);
@@ -90,13 +104,13 @@ void HD44780_Init(uint8_t rows)
 
 void HD44780_Clear()
 {
-  Send(LCD_CLEARDISPLAY, 0);
+  SendCommand(LCD_CLEARDISPLAY);
   DelayUS(2000);
 }
 
 void HD44780_Home()
 {
-  Send(LCD_RETURNHOME, 0);
+  SendCommand(LCD_RETURNHOME);
   DelayUS(2000);
 }
 
@@ -107,92 +121,92 @@ void HD44780_SetCursor(uint8_t col, uint8_t row)
   {
     row = dpRows-1;
   }
-  Send(LCD_SETDDRAMADDR | (col + row_offsets[row]), 0);
+  SendCommand(LCD_SETDDRAMADDR | (col + row_offsets[row]));
 }
 
 void HD44780_NoDisplay()
 {
   dpControl &= ~LCD_DISPLAYON;
-  Send(LCD_DISPLAYCONTROL | dpControl, 0);
+  SendCommand(LCD_DISPLAYCONTROL | dpControl);
 }
 
 void HD44780_Display()
 {
   dpControl |= LCD_DISPLAYON;
-  Send(LCD_DISPLAYCONTROL | dpControl, 0);
+  SendCommand(LCD_DISPLAYCONTROL | dpControl);
 }
 
 void HD44780_NoCursor()
 {
   dpControl &= ~LCD_CURSORON;
-  Send(LCD_DISPLAYCONTROL | dpControl, 0);
+  SendCommand(LCD_DISPLAYCONTROL | dpControl);
 }
 
 void HD44780_Cursor()
 {
   dpControl |= LCD_CURSORON;
-  Send(LCD_DISPLAYCONTROL | dpControl, 0);
+  SendCommand(LCD_DISPLAYCONTROL | dpControl);
 }
 
 void HD44780_NoBlink()
 {
   dpControl &= ~LCD_BLINKON;
-  Send(LCD_DISPLAYCONTROL | dpControl, 0);
+  SendCommand(LCD_DISPLAYCONTROL | dpControl);
 }
 
 void HD44780_Blink()
 {
   dpControl |= LCD_BLINKON;
-  Send(LCD_DISPLAYCONTROL | dpControl, 0);
+  SendCommand(LCD_DISPLAYCONTROL | dpControl);
 }
 
 void HD44780_ScrollDisplayLeft(void)
 {
-  Send(LCD_CURSORSHIFT | LCD_DISPLAYMOVE | LCD_MOVELEFT, 0);
+  SendCommand(LCD_CURSORSHIFT | LCD_DISPLAYMOVE | LCD_MOVELEFT);
 }
 
 void HD44780_ScrollDisplayRight(void)
 {
-  Send(LCD_CURSORSHIFT | LCD_DISPLAYMOVE | LCD_MOVERIGHT, 0);
+  SendCommand(LCD_CURSORSHIFT | LCD_DISPLAYMOVE | LCD_MOVERIGHT);
 }
 
 void HD44780_LeftToRight(void)
 {
   dpMode |= LCD_ENTRYLEFT;
-  Send(LCD_ENTRYMODESET | dpMode, 0);
+  SendCommand(LCD_ENTRYMODESET | dpMode);
 }
 
 void HD44780_RightToLeft(void)
 {
   dpMode &= ~LCD_ENTRYLEFT;
-  Send(LCD_ENTRYMODESET | dpMode, 0);
+  SendCommand(LCD_ENTRYMODESET | dpMode);
 }
 
 void HD44780_AutoScroll(void)
 {
   dpMode |= LCD_ENTRYSHIFTINCREMENT;
-  Send(LCD_ENTRYMODESET | dpMode, 0);
+  SendCommand(LCD_ENTRYMODESET | dpMode);
 }
 
 void HD44780_NoAutoScroll(void)
 {
   dpMode &= ~LCD_ENTRYSHIFTINCREMENT;
-  Send(LCD_ENTRYMODESET | dpMode, 0);
+  SendCommand(LCD_ENTRYMODESET | dpMode);
 }
 
 void HD44780_CreateSpecialChar(uint8_t location, uint8_t charmap[])
 {
   location &= 0x7;
-  Send(LCD_SETCGRAMADDR | (location << 3), 0);
+  SendCommand(LCD_SETCGRAMADDR | (location << 3));
   for (int i=0; i<8; i++)
   {
-    Send(charmap[i], RS);
+    SendChar(charmap[i]);
   }
 }
 
 void HD44780_PrintSpecialChar(uint8_t index)
 {
-  Send(index, RS);
+  SendChar(index);
 }
 
 void HD44780_LoadCustomCharacter(uint8_t char_num, uint8_t *rows)
@@ -202,7 +216,7 @@ void HD44780_LoadCustomCharacter(uint8_t char_num, uint8_t *rows)
 
 void HD44780_PrintStr(const char c[])
 {
-  while(*c) Send(*c++, RS);
+  while(*c) SendChar(*c++);
 }
 
 void HD44780_SetBacklight(uint8_t new_val)
@@ -223,6 +237,16 @@ void HD44780_Backlight(void)
   ExpanderWrite(0);
 }
 
+static void SendCommand(uint8_t cmd)
+{
+  Send(cmd, 0);
+}
+
+static void SendChar(uint8_t ch)
+{
+  Send(ch, RS);
+}
+
 static void Send(uint8_t value, uint8_t mode)
 {
   uint8_t highnib = value & 0xF0;
@@ -240,22 +264,15 @@ static void Write4Bits(uint8_t value)
 static void ExpanderWrite(uint8_t _data)
 {
   uint8_t data = _data | dpBacklight;
-  HAL_I2C_Master_Transmit(&hi2c1, DEVICE_ADDR, (uint8_t*)&data, 1, HAL_MAX_DELAY);
+  HAL_I2C_Master_Transmit(&hi2c1, DEVICE_ADDR, (uint8_t*)&data, 1, 10);
 }
 
 static void PulseEnable(uint8_t _data)
 {
   ExpanderWrite(_data | ENABLE);
-  DelayUS(1);
+  DelayUS(20);
 
   ExpanderWrite(_data & ~ENABLE);
-  DelayUS(50);
+  DelayUS(20);
 }
 
-static void DelayUS(uint32_t us)
-{
-  volatile uint32_t cycles = (SystemCoreClock / 1000000L) * us;
-  volatile uint32_t start = DWT->CYCCNT;
-  do {
-  }while(DWT->CYCCNT - start < cycles);
-}
