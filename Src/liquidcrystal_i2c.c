@@ -1,14 +1,5 @@
 #include "liquidcrystal_i2c.h"
 
-#define DelayUS(us) do {\
-    asm volatile (  "MOV R0,%[loops]\n\t"\
-        "1: \n\t"\
-        "SUB R0, #1\n\t"\
-        "CMP R0, #0\n\t"\
-        "BNE 1b \n\t" : : [loops] "r" (32*us) : "memory"\
-    );\
-} while(0)
-
 extern I2C_HandleTypeDef hi2c1;
 
 uint8_t dpFunction;
@@ -23,6 +14,8 @@ static void Send(uint8_t, uint8_t);
 static void Write4Bits(uint8_t);
 static void ExpanderWrite(uint8_t);
 static void PulseEnable(uint8_t);
+static void DelayInit(void);
+static void DelayUS(uint32_t);
 
 uint8_t special1[8] = {
         0b00000,
@@ -63,9 +56,8 @@ void HD44780_Init(uint8_t rows)
     dpFunction |= LCD_5x10DOTS;
   }
 
-
-
   /* Wait for initialization */
+  DelayInit();
   HAL_Delay(50);
 
   ExpanderWrite(dpBacklight);
@@ -276,3 +268,29 @@ static void PulseEnable(uint8_t _data)
   DelayUS(20);
 }
 
+static void DelayInit(void)
+{
+  CoreDebug->DEMCR &= ~CoreDebug_DEMCR_TRCENA_Msk;
+  CoreDebug->DEMCR |=  CoreDebug_DEMCR_TRCENA_Msk;
+
+  DWT->CTRL &= ~DWT_CTRL_CYCCNTENA_Msk; //~0x00000001;
+  DWT->CTRL |=  DWT_CTRL_CYCCNTENA_Msk; //0x00000001;
+
+  DWT->CYCCNT = 0;
+
+  /* 3 NO OPERATION instructions */
+  __ASM volatile ("NOP");
+  __ASM volatile ("NOP");
+  __ASM volatile ("NOP");
+}
+
+static void DelayUS(uint32_t us) {
+  uint32_t cycles = (SystemCoreClock/1000000L)*us;
+  uint32_t start = DWT->CYCCNT;
+  volatile uint32_t cnt;
+
+  do
+  {
+    cnt = DWT->CYCCNT - start;
+  } while(cnt < cycles);
+}
