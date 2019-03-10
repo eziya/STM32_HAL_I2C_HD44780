@@ -8,3 +8,5 @@ If you use a different PCF8574x series, You may have to change I2C address.<br>
 As I didn't test all of functions, You may experience some flaws while you're testing.<br>
 <br>
 Reference: https://github.com/johnrickman/LiquidCrystal_I2C<br>
+<br>
+![hd44780_1](./hd44780_1.jpg)<br>
