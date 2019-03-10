@@ -9,4 +9,4 @@ As I didn't test all of functions, You may experience some flaws while you're te
 <br>
 Reference: https://github.com/johnrickman/LiquidCrystal_I2C<br>
 <br>
-![hd44780_1](./hd44780_1.jpg)<br>
+![hd44780_1](./hd44780_1.JPG)<br>
